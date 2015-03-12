@@ -21,11 +21,20 @@ robot = Robot('iCubGenova01', '/Users/Raffaello/Documents/MATLAB/FrictionJoint/e
 robot = robot.setReferenceFrame('root_link','true');
 
 %% Add motors to test and load friction estimation
-robot.joints = robot.getJoint('l_knee');
-%robot.joints = robot.getCoupledJoints('torso');
+robot.joints = robot.getJoint('r_hip_pitch');
+%robot.joints = [robot.joints robot.getJoint('l_hip_yaw')];
+%robot.joints = [robot.joints robot.getJoint('l_hip_roll')];
+%robot.joints = [robot.joints robot.getCoupledJoints('torso')];
 robot = robot.loadData('idle');
 robot = robot.loadData('ref');
-%robot.plotAndPrintAllData();
+robot.plotAndPrintAllData();
+
+%% Configure your computer
+% Set all variables:
+% - Name of joint list with your list of joints
+% - If true, automatic set yarp namespace
+robot.configure('JOINT_FRICTION','false');
+%robot.buildFolders();
 
 %% Load information motor to control
 motors = robot.getListMotor(robot.joints{1});
@@ -33,22 +42,29 @@ for i=1:length(motors)
     motors{i} = motors{i}.controlValue('Firmware');
 end
 
-control = struct;
-control.length = length(motors);
-control.frictionComp = 0;
-control.ktau = zeros(control.length);
-control.bemf = zeros(control.length);
-control.stictionUp = zeros(control.length);
-control.stictionDown = zeros(control.length);
+frictionS = struct;
+frictionS.length = length(motors);
+frictionS.frictionComp = 0;
+frictionS.ktau = zeros(frictionS.length);
+frictionS.bemf = zeros(frictionS.length);
+frictionS.stictionUp = zeros(frictionS.length);
+frictionS.stictionDown = zeros(frictionS.length);
 
 for i=1:length(motors)
-    control.ktau(i,i) = motors{i}.ktau/motors{i}.ratioVoltage;
-    control.bemf(i,i) = motors{i}.bemf/motors{i}.ratioVoltage;
-    control.stictionUp(i,i) = motors{i}.stictionUp/motors{i}.ratioVoltage;
-    control.stictionDown(i,i) = motors{i}.stictionDown/motors{i}.ratioVoltage;
+    frictionS.ktau(i,i) = motors{i}.ktau*motors{i}.ratioTorque;
+    frictionS.bemf(i,i) = motors{i}.bemf*motors{i}.ratioTorque;
+    frictionS.stictionUp(i,i) = motors{i}.stictionUp*motors{i}.ratioTorque;
+    frictionS.stictionDown(i,i) = motors{i}.stictionDown*motors{i}.ratioTorque;
 end
+
+% control.ktau
+%% Control 
+control = struct;
+control.kp = 2;
+control.ki = 0;
+
 clear i;
-clear motors;
+%clear motors;
 %% Configure your computer
 % Set all variables:
 % - Name of joint list with your list of joints
@@ -57,20 +73,12 @@ robot.configure('TEST_CONTROL','false');
 %robot.buildFolders();
 
 %% Reference
-name = 'ref';
 Reference = struct;
+Reference.sinAmp = 10;
+Reference.sinFreq = 0.15;
+Reference.sinBias = 0;
 
-if strcmp(name,'idle')
-    Reference.sinAmp = 0;
-    Reference.sinFreq = 0;
-    Reference.sinBias = 0;
-elseif strcmp(name,'ref')
-    Reference.sinAmp = 0.5;
-    Reference.sinFreq = 0.05;
-    Reference.sinBias = -1;
-end
-
+Reference.sinAmp = Reference.sinAmp/(180/pi);
 qDth = 0.1;
-clear name;
 %% Open Simulink
-open('ControlTorque.slx');
+open('simpleControl.slx');
